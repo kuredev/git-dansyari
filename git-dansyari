@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+get_merge_commit_id_from_branch_name() {
+  branch_name="$1"
+
+  merged_branch_commit_id=$(git rev-parse "$branch_name")
+  merge_commit_ids=$(git log --pretty=%H --merges)
+
+  for merge_commit_id in $merge_commit_ids ; do
+    parent_commit1=$(git rev-parse "$merge_commit_id"^1)
+    parent_commit2=$(git rev-parse "$merge_commit_id"^2)
+
+    if [ "$parent_commit1" = "$merged_branch_commit_id" ] || [ "$parent_commit2" = "$merged_branch_commit_id" ] ; then
+      echo "$merge_commit_id"
+    fi
+  done
+}
+
+merged_branches=$(git branch --no-color --merged | grep -vE "^(\*|\+)")
+for merged_branch in $merged_branches ; do
+  merge_commit_id=$(get_merge_commit_id_from_branch_name "$merged_branch")
+
+  if [ -z "$merge_commit_id" ]; then
+    continue
+  fi
+
+  merge_commit_date="$(git show "$merge_commit_id" --format=%ci)"
+  merge_commit_short="$(git rev-parse --short "$merge_commit_id")"
+
+  echo "---------------------------------"
+  echo "Branch Name:   $merged_branch"
+  echo "Merged Date:   $merge_commit_date"
+  echo "Merge Commit:  $merge_commit_short"
+  echo "---------------------------------"
+
+  echo -n "Are you sure you want to delete this branch? [Y/n]: "
+  read -r ANS
+
+  case $ANS in
+    "" | [Yy]* )
+      git branch -D "$merged_branch"
+      echo ""
+      ;;
+    * )
+      # No.
+      ;;
+  esac
+done
